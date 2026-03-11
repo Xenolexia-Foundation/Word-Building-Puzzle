@@ -16,7 +16,7 @@ A phased roadmap from zero to MVP and beyond, aligned with your TypeScript stack
 | **Phase 5** | Progress tracking | Words found, score, streaks |
 | **Phase 6** | Simple UI | Tiles, input, word list, scoreboard |
 | **Phase 7** | Polish & ship | Offline-first, testing, first release |
-| **Phase 8+** | Stretch | Timed mode, leaderboards, i18n, audio, hints |
+| **Phase 8** | Stretch | 8.1 Timed · 8.2 Leaderboards · 8.3 i18n · 8.4 Audio · 8.5 Hints |
 
 ---
 
@@ -293,9 +293,202 @@ A phased roadmap from zero to MVP and beyond, aligned with your TypeScript stack
 
 ---
 
-## Phase 8+: Stretch Features
+## Phase 8: Stretch Features — Overview
 
-After MVP, add in any order; below is a suggested order.
+After MVP, these can be tackled in any order. Suggested sequence: **8.1 → 8.2 → 8.3 → 8.4 → 8.5** (timed first, then leaderboards, i18n, audio, hints). Dependencies are noted per subphase.
+
+| Subphase | Focus | Deps | Est. |
+|----------|--------|------|------|
+| **8.1** | Timed challenge mode | Phase 2, 5 | 2–3 days |
+| **8.2** | Leaderboards | Backend, 8.1 optional | 3–5 days |
+| **8.3** | Multiple languages | Phase 0 | 2–3 days |
+| **8.4** | Audio pronunciation | Phase 3 | 1–2 days |
+| **8.5** | Hints / power-ups | Phase 1, 6 | 1–2 days |
+
+---
+
+## Phase 8.1: Timed Challenge Mode
+
+**Goal:** A separate mode where the user has a fixed time (e.g. 60s) to find as many words as possible from one puzzle. Score and words found are tracked for the session; optional local best.
+
+### Tasks
+
+1. **Mode selection**
+   - Add a way to choose “Daily” vs “Timed” (e.g. tab, menu, or home screen).
+   - Timed mode does not use the daily seed; generate a puzzle on demand (or reuse a fixed “challenge” seed per day for fairness).
+
+2. **Timer logic**
+   - Countdown from e.g. 60 seconds (configurable: 30 / 60 / 90).
+   - On start: generate puzzle, start timer, clear found/score.
+   - On expiry: stop input, show final score and word count, optionally “Play again” with new puzzle.
+   - Pause/resume optional (e.g. pause when meaning card is open).
+
+3. **Scoring & storage**
+   - Reuse Phase 2 scoring; no streak in timed mode.
+   - Persist “best timed score” (and/or best word count) in localStorage/AsyncStorage per duration (e.g. best 60s score). Phase 5 progress types can be extended or a separate key used.
+
+4. **UI**
+   - Prominent countdown (e.g. large timer, color change in last 10s).
+   - “Start” / “Play again” CTA; after run: summary screen (score, words found, best).
+
+### Deliverables
+
+- [ ] Timed mode selectable; timer countdown; game ends when time runs out.
+- [ ] Score and words found shown during and after run.
+- [ ] Optional: local best score/count for timed mode.
+
+### Duration (estimate)
+
+**2–3 days**
+
+---
+
+## Phase 8.2: Leaderboards
+
+**Goal:** Daily or all-time leaderboards so users can compare scores. Requires a backend (or serverless) and a way to identify users (anonymous ID or auth).
+
+### Tasks
+
+1. **Backend**
+   - Add a small API (e.g. Node/Express or serverless): submit score (payload: date or “timed”, score, word count, optional user id / anonymous id).
+   - Store entries in DB (e.g. PostgreSQL, SQLite, or Firebase). Schema: e.g. `(id, date|mode, score, word_count, user_id, created_at)`.
+   - Endpoints: `POST /score`, `GET /leaderboard?date=YYYY-MM-DD` or `?mode=timed&duration=60`.
+
+2. **Identity**
+   - Option A: Anonymous device/user id (UUID in localStorage; no login).
+   - Option B: Simple auth (email+password or OAuth) to attach scores to an account.
+   - Decide policy: one submission per user per day (or best of N for timed).
+
+3. **App integration**
+   - After daily puzzle or timed run, optionally “Submit to leaderboard” (if online).
+   - Leaderboard screen or section: list top N (e.g. 10) with rank, score, words (and “You” highlighted if present). Handle offline: show “Submit when online” or cached last fetch.
+
+4. **Privacy & rules**
+   - Decide what is public (nickname, score, rank). Comply with any store/legal requirements (e.g. age, data disclosure).
+
+### Deliverables
+
+- [ ] Backend API to submit and fetch leaderboard entries.
+- [ ] App can submit score (when online) and display a leaderboard list.
+- [ ] Graceful degradation when offline (no crash; optional cached or “Try again later”).
+
+### Duration (estimate)
+
+**3–5 days** (depends on auth choice and hosting)
+
+---
+
+## Phase 8.3: Multiple Languages
+
+**Goal:** Support more than one language: second (or Nth) dictionary and a language switcher. Same puzzle and validation logic; only the dictionary and UI language change.
+
+### Tasks
+
+1. **Dictionary format**
+   - Ensure Phase 0 format is language-agnostic (already: `word`, `translation`, `example`).
+   - Add one JSON (or SQLite) per language, e.g. `dictionary.en.json`, `dictionary.es.json`. Load only the active language to keep memory and startup time acceptable.
+
+2. **Language state**
+   - Persist “current language” in localStorage/AsyncStorage (e.g. `xenolexia-lang` = `"en"`).
+   - At app init: read lang, load the corresponding dictionary, call `setDictionary(entries)`.
+
+3. **Puzzle generator**
+   - `generatePuzzle` already uses the in-memory dictionary; no change. Daily seed can stay global (one puzzle per day per app) or vary by language (one puzzle per day per language). Recommend: one puzzle per day per language so all English users share the same English puzzle.
+
+4. **UI**
+   - Language switcher (e.g. in header or settings): list of supported locales; on change, reload dictionary, optionally regenerate today’s puzzle for that language (or keep same seed and just swap dictionary so valid words change).
+   - Optional: localize UI strings (e.g. “Score”, “Found”, “Submit”) via i18n (e.g. react-i18next, or a simple key→string map per lang).
+
+### Deliverables
+
+- [ ] At least two languages with separate dictionaries and a switcher.
+- [ ] Daily puzzle (and progress) respects selected language; same seed per language per day.
+- [ ] Optional: localized UI labels.
+
+### Duration (estimate)
+
+**2–3 days**
+
+---
+
+## Phase 8.4: Audio Pronunciation
+
+**Goal:** After a correct word (or on demand), play audio for the word and optionally the example sentence. TTS (browser/device) or pre-recorded clips.
+
+### Tasks
+
+1. **TTS (text-to-speech)**
+   - **Web/Electron:** Use Web Speech API `SpeechSynthesis` (or Electron’s equivalent) to speak `word` and optionally `example`. No extra assets; quality depends on device.
+   - **React Native:** Use a TTS module (e.g. `react-native-tts` or expo-speech) to speak word/example.
+   - Add a “Speak” or speaker icon on the meaning card (Phase 3); on press, call TTS with word, then example if present.
+
+2. **Pre-recorded (optional)**
+   - If you prefer human voice: record clips per word (or per common words), host as static files or in CDN, play via `<audio>` or RN sound API. Much more work; usually start with TTS.
+
+3. **Settings**
+   - Optional: “Pronunciation: on / off” or “Auto-play after correct word” so users can disable.
+
+### Deliverables
+
+- [ ] Play pronunciation (TTS or clip) for the word from the meaning card.
+- [ ] Optional: play example sentence; optional setting to toggle audio.
+
+### Duration (estimate)
+
+**1–2 days**
+
+---
+
+## Phase 8.5: Hints / Power-ups
+
+**Goal:** Help the user discover words: e.g. “Reveal one word” (show a random valid word they haven’t found) or “Shuffle tiles” (reorder letters). Can be limited per day or per puzzle to avoid trivializing the game.
+
+### Tasks
+
+1. **Reveal-one-word hint**
+   - From Phase 1, puzzle has `validWords`; from Phase 5/state, you have `found`. Pick a random word in `validWords` that is not in `found`; show it (e.g. in a small toast or modal: “Try: **trace**”). If none left, show “No hints left.”
+   - Optional: limit to 1–3 hints per puzzle (or per day); persist hint count in progress.
+
+2. **Shuffle tiles**
+   - Reorder `puzzle.letters` in state (random shuffle). Purely cosmetic; no change to valid words. Button “Shuffle” near the tiles.
+
+3. **UI**
+   - “Hint” and “Shuffle” buttons in the game area (Phase 6 UI). Ensure they don’t break layout on small screens.
+   - Optional: cost or cooldown (e.g. “1 hint per puzzle”) and show remaining count.
+
+### Deliverables
+
+- [ ] “Reveal one word” hint: show an unfound valid word (with optional per-puzzle limit).
+- [ ] “Shuffle” button to reorder letter tiles.
+- [ ] Hints and shuffle integrated into Electron and React Native UIs.
+
+### Duration (estimate)
+
+**1–2 days**
+
+---
+
+## Phase 8: Dependency Summary
+
+```
+MVP (Phases 0–7)
+    │
+    ├── 8.1 Timed challenge  (Phase 2 scoring, Phase 5 storage)
+    │
+    ├── 8.2 Leaderboards     (new backend; 8.1 optional for timed leaderboard)
+    │
+    ├── 8.3 Multiple languages (Phase 0 dictionary format; one dict per lang)
+    │
+    ├── 8.4 Audio            (Phase 3 meaning card UI; TTS or clips)
+    │
+    └── 8.5 Hints            (Phase 1 validWords, Phase 6 UI)
+```
+
+---
+
+## Phase 8+: Stretch Features (legacy summary)
+
+After MVP, add in any order; see subphases 8.1–8.5 above for full breakdown.
 
 | Feature | Description | Deps |
 |--------|-------------|------|

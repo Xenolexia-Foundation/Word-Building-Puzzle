@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   setDictionary,
-  sampleDictionary,
+  DICTIONARIES,
+  SUPPORTED_LOCALES,
   generatePuzzle,
   getDailySeed,
   getEntry,
@@ -13,15 +14,55 @@ import {
   type Puzzle,
   type DailyProgressState,
   type StreakState,
+  type Locale,
 } from 'xenolexia-core';
 
-const STORAGE_KEY = 'xenolexia-daily';
-const PROGRESS_KEY = 'xenolexia-daily-progress';
-const STREAK_KEY = 'xenolexia-streak';
+const LANG_KEY = 'xenolexia-lang';
 
-function loadDailyPuzzle(): { puzzle: Puzzle; date: string } | null {
+function getStorageKeys(locale: Locale) {
+  return {
+    daily: `xenolexia-daily-${locale}`,
+    progress: `xenolexia-daily-progress-${locale}`,
+    streak: `xenolexia-streak-${locale}`,
+    timedBest: (duration: number) => `xenolexia-timed-best-${locale}-${duration}`,
+  };
+}
+
+function loadStoredLocale(): Locale {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(LANG_KEY);
+    if (raw === 'en' || raw === 'es') return raw;
+  } catch {
+    /* ignore */
+  }
+  return 'en';
+}
+
+function loadTimedBest(locale: Locale, duration: number): { score: number; wordCount: number } | null {
+  try {
+    const key = getStorageKeys(locale).timedBest(duration);
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const data = JSON.parse(raw) as { score: number; wordCount: number };
+    if (typeof data.score !== 'number' || typeof data.wordCount !== 'number') return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function saveTimedBest(locale: Locale, duration: number, score: number, wordCount: number): void {
+  try {
+    const key = getStorageKeys(locale).timedBest(duration);
+    localStorage.setItem(key, JSON.stringify({ score, wordCount }));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadDailyPuzzle(locale: Locale): { puzzle: Puzzle; date: string } | null {
+  try {
+    const raw = localStorage.getItem(getStorageKeys(locale).daily);
     if (!raw) return null;
     const data = JSON.parse(raw) as { date: string; puzzle: Puzzle };
     if (!data.date || !data.puzzle?.letters || !Array.isArray(data.puzzle.validWords)) return null;
@@ -31,17 +72,17 @@ function loadDailyPuzzle(): { puzzle: Puzzle; date: string } | null {
   }
 }
 
-function saveDailyPuzzle(date: string, puzzle: Puzzle): void {
+function saveDailyPuzzle(locale: Locale, date: string, puzzle: Puzzle): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ date, puzzle }));
+    localStorage.setItem(getStorageKeys(locale).daily, JSON.stringify({ date, puzzle }));
   } catch {
     /* ignore */
   }
 }
 
-function loadDailyProgress(date: string): DailyProgressState | null {
+function loadDailyProgress(locale: Locale, date: string): DailyProgressState | null {
   try {
-    const raw = localStorage.getItem(PROGRESS_KEY);
+    const raw = localStorage.getItem(getStorageKeys(locale).progress);
     if (!raw) return null;
     const data = JSON.parse(raw) as { date: string; foundWords: string[]; score: number };
     if (data.date !== date || !Array.isArray(data.foundWords)) return null;
@@ -51,17 +92,17 @@ function loadDailyProgress(date: string): DailyProgressState | null {
   }
 }
 
-function saveDailyProgress(date: string, state: DailyProgressState): void {
+function saveDailyProgress(locale: Locale, date: string, state: DailyProgressState): void {
   try {
-    localStorage.setItem(PROGRESS_KEY, JSON.stringify({ date, ...state }));
+    localStorage.setItem(getStorageKeys(locale).progress, JSON.stringify({ date, ...state }));
   } catch {
     /* ignore */
   }
 }
 
-function loadStreak(): StreakState | null {
+function loadStreak(locale: Locale): StreakState | null {
   try {
-    const raw = localStorage.getItem(STREAK_KEY);
+    const raw = localStorage.getItem(getStorageKeys(locale).streak);
     if (!raw) return null;
     const data = JSON.parse(raw) as StreakState;
     if (!data.lastPlayedDate || typeof data.streakCount !== 'number') return null;
@@ -71,13 +112,18 @@ function loadStreak(): StreakState | null {
   }
 }
 
-function saveStreak(state: StreakState): void {
+function saveStreak(locale: Locale, state: StreakState): void {
   try {
-    localStorage.setItem(STREAK_KEY, JSON.stringify(state));
+    localStorage.setItem(getStorageKeys(locale).streak, JSON.stringify(state));
   } catch {
     /* ignore */
   }
 }
+
+const TIMED_DURATIONS = [30, 60, 90] as const;
+type TimedDuration = (typeof TIMED_DURATIONS)[number];
+
+type GameMode = 'daily' | 'timed';
 
 function formatPuzzleDate(seed: string): string {
   return new Date(seed + 'T12:00:00Z').toLocaleDateString(undefined, {
@@ -93,7 +139,26 @@ function sortFoundWords(words: string[]): string[] {
   return [...words].sort((a, b) => b.length - a.length || a.localeCompare(b));
 }
 
+const HINTS_PER_PUZZLE = 3;
+
+function pickRandomHint(validWords: string[], found: string[]): string | null {
+  const unfound = validWords.filter((w) => !found.includes(w));
+  if (unfound.length === 0) return null;
+  return unfound[Math.floor(Math.random() * unfound.length)];
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
 function App() {
+  const [locale, setLocaleState] = useState<Locale>(() => loadStoredLocale());
+  const [gameMode, setGameMode] = useState<GameMode>('daily');
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [input, setInput] = useState('');
   const [found, setFound] = useState<string[]>([]);
@@ -107,52 +172,141 @@ function App() {
     points: number;
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [hintWord, setHintWord] = useState<string | null>(null);
+  const [hintsUsed, setHintsUsed] = useState(0);
+
+  // Timed mode state
+  const [timedDuration, setTimedDuration] = useState<TimedDuration>(60);
+  const [timedRunning, setTimedRunning] = useState(false);
+  const [timedSecondsLeft, setTimedSecondsLeft] = useState(0);
+  const [timedResult, setTimedResult] = useState<{ score: number; wordCount: number } | null>(null);
+  const [showTimedSummary, setShowTimedSummary] = useState(false);
+  const timedEndHandled = useRef(false);
+
+  const setLocale = (newLocale: Locale) => {
+    setLocaleState(newLocale);
+    try {
+      localStorage.setItem(LANG_KEY, newLocale);
+    } catch {
+      /* ignore */
+    }
+  };
 
   useEffect(() => {
+    if (gameMode === 'timed') {
+      setPuzzle(null);
+      setShowTimedSummary(false);
+      setTimedResult(null);
+      setTimedRunning(false);
+      timedEndHandled.current = false;
+    }
+  }, [gameMode]);
+
+  useEffect(() => {
+    if (gameMode !== 'daily') return;
     try {
-      setDictionary(sampleDictionary);
+      setDictionary(DICTIONARIES[locale]);
       const today = getDailySeed();
-      const stored = loadDailyPuzzle();
+      const stored = loadDailyPuzzle(locale);
       if (stored && stored.date === today) {
         setPuzzle(stored.puzzle);
-        const progress = loadDailyProgress(today);
+        const progress = loadDailyProgress(locale, today);
         if (progress) {
           setFound(progress.foundWords);
           setScore(progress.score);
         }
       } else {
         const newPuzzle = generatePuzzle({ seed: today });
-        saveDailyPuzzle(today, newPuzzle);
+        saveDailyPuzzle(locale, today, newPuzzle);
         setPuzzle(newPuzzle);
       }
-      setStreak(loadStreak());
+      setStreak(loadStreak(locale));
+      setLoadError(null);
     } catch {
       const today = getDailySeed();
       const newPuzzle = generatePuzzle({ seed: today });
       setPuzzle(newPuzzle);
       setLoadError("Progress couldn't be loaded. Today's puzzle is ready.");
     }
-  }, []);
+  }, [gameMode, locale]);
+
+  // Reset hint state when puzzle changes
+  useEffect(() => {
+    setHintWord(null);
+    setHintsUsed(0);
+  }, [puzzle?.seed]);
+
+  // Countdown timer for timed mode
+  useEffect(() => {
+    if (!timedRunning || timedSecondsLeft <= 0) return;
+    const id = setInterval(() => {
+      setTimedSecondsLeft((s) => {
+        if (s <= 1) {
+          setTimedRunning(false);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [timedRunning, timedSecondsLeft]);
+
+  // When timed run ends: set result, show summary, update best
+  useEffect(() => {
+    if (gameMode !== 'timed' || timedRunning || timedSecondsLeft > 0) return;
+    if (timedEndHandled.current || !puzzle) return;
+    timedEndHandled.current = true;
+    setTimedResult({ score, wordCount: found.length });
+    setShowTimedSummary(true);
+    const best = loadTimedBest(locale, timedDuration);
+    if (!best || score > best.score || (score === best.score && found.length > best.wordCount)) {
+      saveTimedBest(locale, timedDuration, score, found.length);
+    }
+  }, [gameMode, timedRunning, timedSecondsLeft, puzzle, score, found.length, timedDuration, locale]);
+
+  const startTimedRun = () => {
+    setDictionary(DICTIONARIES[locale]);
+    const newPuzzle = generatePuzzle({ seed: `timed-${Date.now()}` });
+    setPuzzle(newPuzzle);
+    setFound([]);
+    setScore(0);
+    setInput('');
+    setMessage(null);
+    setMeaningCard(null);
+    setTimedSecondsLeft(timedDuration);
+    setTimedRunning(true);
+    setTimedResult(null);
+    setShowTimedSummary(false);
+    timedEndHandled.current = false;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (gameMode === 'timed' && !timedRunning) return;
+    if (gameMode === 'timed' && timedSecondsLeft <= 0) return;
     const word = input.trim().toLowerCase();
     setInput('');
     setMessage(null);
     setMeaningCard(null);
+    setHintWord(null);
     if (!word || !puzzle) return;
 
     const result = validateWord(puzzle, word, found);
     if (result.ok) {
       const points = result.points;
-      const today = getDailySeed();
-      setScore((s) => s + points);
-      const newFound = [...found, word].sort();
-      setFound(newFound);
-      saveDailyProgress(today, { foundWords: newFound, score: score + points });
-      const newStreak = updateStreakAfterPlay(streak, today);
-      setStreak(newStreak);
-      saveStreak(newStreak);
+      if (gameMode === 'daily') {
+        const today = getDailySeed();
+        setScore((s) => s + points);
+        const newFound = [...found, word].sort();
+        setFound(newFound);
+        saveDailyProgress(locale, today, { foundWords: newFound, score: score + points });
+        const newStreak = updateStreakAfterPlay(streak, today);
+        setStreak(newStreak);
+        saveStreak(locale, newStreak);
+      } else {
+        setScore((s) => s + points);
+        setFound((f) => [...f, word].sort());
+      }
       const entry = getEntry(word);
       setMeaningCard({
         word,
@@ -160,6 +314,7 @@ function App() {
         example: entry?.example ?? null,
         points,
       });
+      setHintWord(null);
       return;
     }
     if (result.reason === 'already_found') {
@@ -169,6 +324,110 @@ function App() {
     setMessage(hasWord(word) ? 'Not formable from these letters' : 'Not in dictionary');
   };
 
+  if (gameMode === 'timed' && !timedRunning && !showTimedSummary) {
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1 className="app-title">Xenolexia</h1>
+          <p className="subtitle">Word-building puzzle</p>
+          <div className="lang-switcher" role="group" aria-label="Language">
+            {SUPPORTED_LOCALES.map((loc) => (
+              <button
+                key={loc}
+                type="button"
+                className={`lang-btn ${locale === loc ? 'lang-btn-active' : ''}`}
+                onClick={() => setLocale(loc)}
+              >
+                {loc === 'en' ? 'English' : 'Español'}
+              </button>
+            ))}
+          </div>
+        </header>
+        <div className="mode-tabs" role="tablist" aria-label="Game mode">
+          <button type="button" role="tab" aria-selected={false} className="mode-tab" onClick={() => setGameMode('daily')}>
+            Daily
+          </button>
+          <button type="button" role="tab" aria-selected={true} className="mode-tab mode-tab-active">
+            Timed
+          </button>
+        </div>
+        <section className="timed-start" aria-label="Timed challenge">
+          <h2 className="timed-start-title">Timed challenge</h2>
+          <p className="timed-start-desc">Find as many words as you can before time runs out.</p>
+          <div className="timed-duration">
+            <span className="timed-duration-label">Duration:</span>
+            {TIMED_DURATIONS.map((d) => (
+              <button
+                key={d}
+                type="button"
+                className={`timed-duration-btn ${timedDuration === d ? 'timed-duration-btn-active' : ''}`}
+                onClick={() => setTimedDuration(d)}
+              >
+                {d}s
+              </button>
+            ))}
+          </div>
+          <button type="button" className="btn btn-start" onClick={startTimedRun}>
+            Start
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  if (gameMode === 'timed' && showTimedSummary && timedResult) {
+    const best = loadTimedBest(locale, timedDuration);
+    return (
+      <div className="app">
+        <header className="app-header">
+          <h1 className="app-title">Xenolexia</h1>
+          <p className="subtitle">Word-building puzzle</p>
+          <div className="lang-switcher" role="group" aria-label="Language">
+            {SUPPORTED_LOCALES.map((loc) => (
+              <button
+                key={loc}
+                type="button"
+                className={`lang-btn ${locale === loc ? 'lang-btn-active' : ''}`}
+                onClick={() => setLocale(loc)}
+              >
+                {loc === 'en' ? 'English' : 'Español'}
+              </button>
+            ))}
+          </div>
+        </header>
+        <div className="mode-tabs" role="tablist" aria-label="Game mode">
+          <button type="button" role="tab" aria-selected={false} className="mode-tab" onClick={() => setGameMode('daily')}>
+            Daily
+          </button>
+          <button type="button" role="tab" aria-selected={true} className="mode-tab mode-tab-active">
+            Timed
+          </button>
+        </div>
+        <section className="timed-summary" aria-label="Timed run result">
+          <h2 className="timed-summary-title">Time&apos;s up!</h2>
+          <div className="timed-summary-stats">
+            <div className="stat">
+              <span className="stat-value">{timedResult.score}</span>
+              <span className="stat-label">Score</span>
+            </div>
+            <div className="stat">
+              <span className="stat-value">{timedResult.wordCount}</span>
+              <span className="stat-label">Words</span>
+            </div>
+          </div>
+          {best && (
+            <p className="timed-summary-best">
+              Best for {timedDuration}s: {best.score} pts, {best.wordCount} words
+            </p>
+          )}
+          <button type="button" className="btn btn-start" onClick={startTimedRun}>
+            Play again
+          </button>
+        </section>
+      </div>
+    );
+  }
+
   if (!puzzle) return <div className="loading">Loading…</div>;
 
   return (
@@ -176,13 +435,53 @@ function App() {
       <header className="app-header">
         <h1 className="app-title">Xenolexia</h1>
         <p className="subtitle">Word-building puzzle</p>
-        <p className="daily-date">Today&apos;s puzzle · {formatPuzzleDate(puzzle.seed)}</p>
+        <div className="lang-switcher" role="group" aria-label="Language">
+          {SUPPORTED_LOCALES.map((loc) => (
+            <button
+              key={loc}
+              type="button"
+              className={`lang-btn ${locale === loc ? 'lang-btn-active' : ''}`}
+              onClick={() => setLocale(loc)}
+            >
+              {loc === 'en' ? 'English' : 'Español'}
+            </button>
+          ))}
+        </div>
+        {gameMode === 'daily' && (
+          <p className="daily-date">Today&apos;s puzzle · {formatPuzzleDate(puzzle.seed)}</p>
+        )}
+        {gameMode === 'timed' && timedRunning && (
+          <p className="timed-timer" aria-live="polite" aria-atomic="true">
+            {timedSecondsLeft}s
+          </p>
+        )}
         {loadError && (
           <p className="load-error" role="alert">
             {loadError}
           </p>
         )}
       </header>
+
+      <div className="mode-tabs" role="tablist" aria-label="Game mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={gameMode === 'daily'}
+          className={`mode-tab ${gameMode === 'daily' ? 'mode-tab-active' : ''}`}
+          onClick={() => setGameMode('daily')}
+        >
+          Daily
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={gameMode === 'timed'}
+          className={`mode-tab ${gameMode === 'timed' ? 'mode-tab-active' : ''}`}
+          onClick={() => setGameMode('timed')}
+        >
+          Timed
+        </button>
+      </div>
 
       <div className="scoreboard" role="group" aria-label="Game stats">
         <div className="stat">
@@ -193,7 +492,7 @@ function App() {
           <span className="stat-value" aria-label={`${found.length} words found`}>{found.length}</span>
           <span className="stat-label">Words</span>
         </div>
-        {getDisplayStreak(streak, puzzle.seed) > 0 && (
+        {getDisplayStreak(streak, puzzle.seed) > 0 && gameMode === 'daily' && (
           <div className="stat stat-streak">
             <span className="stat-value" aria-label={`${getDisplayStreak(streak, puzzle.seed)} day streak`}>
               {getDisplayStreak(streak, puzzle.seed)}
@@ -216,6 +515,38 @@ function App() {
               {letter}
             </button>
           ))}
+        </div>
+        <div className="tiles-actions">
+          <button
+            type="button"
+            className="btn btn-hint"
+            onClick={() => {
+              if (hintsUsed >= HINTS_PER_PUZZLE) {
+                setMessage('No hints left.');
+                return;
+              }
+              const word = pickRandomHint(puzzle.validWords, found);
+              if (!word) {
+                setMessage('No hints left.');
+                return;
+              }
+              setHintWord(word);
+              setHintsUsed((u) => u + 1);
+              setMessage(null);
+            }}
+            disabled={hintsUsed >= HINTS_PER_PUZZLE || puzzle.validWords.every((w) => found.includes(w))}
+            title={hintsUsed >= HINTS_PER_PUZZLE ? 'No hints left' : `Hint (${HINTS_PER_PUZZLE - hintsUsed} left)`}
+          >
+            Hint ({HINTS_PER_PUZZLE - hintsUsed} left)
+          </button>
+          <button
+            type="button"
+            className="btn btn-shuffle"
+            onClick={() => setPuzzle({ ...puzzle, letters: shuffleArray(puzzle.letters) })}
+            title="Shuffle letter order"
+          >
+            Shuffle
+          </button>
         </div>
       </section>
 
@@ -242,6 +573,11 @@ function App() {
           className={`message ${message === 'Already found' || message.startsWith('Not ') ? 'error' : ''}`}
         >
           {message}
+        </p>
+      )}
+      {hintWord && (
+        <p role="status" aria-live="polite" className="message hint-reveal">
+          Try: <strong>{hintWord}</strong>
         </p>
       )}
       {meaningCard && (
