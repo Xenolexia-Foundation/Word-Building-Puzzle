@@ -1,0 +1,327 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a1b26;
+  color: #c0caf5;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.4;
+}
+
+#root {
+  width: 100%;
+  max-width: 440px;
+  min-height: 100vh;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.loading {
+  text-align: center;
+  color: #7aa2f7;
+  padding: 2rem;
+}
+
+.app {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.app-header {
+  margin-bottom: 1.25rem;
+}
+
+.app-title {
+  font-size: 1.75rem;
+  margin: 0 0 0.25rem;
+  color: #7dcfff;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: #565f89;
+}
+
+.daily-date {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #565f89;
+}
+
+.load-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #e0af68;
+  max-width: 320px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.scoreboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.stat {
+  min-width: 4.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #24283b;
+  border: 1px solid #414868;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #7dcfff;
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  color: #565f89;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.15rem;
+}
+
+.stat-streak .stat-value {
+  color: #9ece6a;
+}
+
+.tiles-section {
+  margin-bottom: 1rem;
+}
+
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.tile {
+  width: 3.25rem;
+  height: 3.25rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  border: 2px solid #414868;
+  background: #24283b;
+  color: #c0caf5;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.tile:hover {
+  background: #414868;
+  border-color: #7aa2f7;
+}
+
+.tile:focus-visible {
+  outline: 2px solid #7aa2f7;
+  outline-offset: 2px;
+}
+
+.form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.input {
+  flex: 1;
+  padding: 0.65rem 0.85rem;
+  font-size: 1rem;
+  border: 2px solid #414868;
+  background: #24283b;
+  color: #c0caf5;
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+
+.input::placeholder {
+  color: #565f89;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #7aa2f7;
+}
+
+.btn {
+  padding: 0.65rem 1.1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  background: #7aa2f7;
+  color: #1a1b26;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn:hover {
+  background: #89b4fa;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #c0caf5;
+  outline-offset: 2px;
+}
+
+.message {
+  min-height: 1.5em;
+  font-size: 0.9rem;
+  color: #9ece6a;
+  margin: 0 0 1rem;
+}
+
+.message.error {
+  color: #f7768e;
+}
+
+.found-section {
+  text-align: left;
+  padding: 1rem 1.1rem;
+  background: #24283b;
+  border-radius: 10px;
+  border: 1px solid #414868;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.found-heading {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #7dcfff;
+  margin: 0 0 0.5rem;
+}
+
+.found-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.found-item {
+  margin: 0.35rem 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.found-word {
+  color: #c0caf5;
+  text-transform: capitalize;
+}
+
+.found-pts {
+  font-size: 0.8rem;
+  color: #9ece6a;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Phase 3: Meaning card */
+.meaning-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.meaning-card {
+  background: #24283b;
+  border: 2px solid #414868;
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 360px;
+  width: 90%;
+}
+
+.meaning-card .meaning-dismiss:focus-visible {
+  outline: 2px solid #c0caf5;
+  outline-offset: 2px;
+}
+
+.meaning-word {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+  color: #7dcfff;
+  text-transform: capitalize;
+}
+
+.meaning-translation {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: #c0caf5;
+  line-height: 1.4;
+}
+
+.meaning-example {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: #565f89;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.meaning-points {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: #9ece6a;
+  font-weight: 600;
+}
+
+.meaning-dismiss {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  background: #7aa2f7;
+  color: #1a1b26;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.meaning-dismiss:hover {
+  background: #89b4fa;
+}

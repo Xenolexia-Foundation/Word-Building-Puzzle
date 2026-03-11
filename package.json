@@ -1,0 +1,19 @@
+{
+  "name": "xenolexia",
+  "private": true,
+  "description": "Word-building puzzle — Electron (desktop) + React Native (mobile)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:core": "npm run build -w packages/core",
+    "test": "npm run test -w packages/core",
+    "dev:electron": "npm run dev -w apps/electron",
+    "dev:mobile": "npm run start -w apps/mobile"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
