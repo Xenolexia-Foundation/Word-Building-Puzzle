@@ -1,11 +1,12 @@
 /**
  * Dictionary entry for a single word.
  * Used for validation and meaning lookup.
+ * Outline alignment: "definition" = translation; optional example = example.
  */
 export interface DictionaryEntry {
   /** Normalized word (lowercase, for lookup) */
   word: string;
-  /** Translation or definition */
+  /** Definition or translation (outline: definition) */
   translation: string;
   /** Optional example sentence */
   example?: string;
@@ -19,13 +20,14 @@ export type Dictionary = DictionaryEntry[];
 
 /**
  * Result of generating a puzzle: letters and the set of valid words (internal use).
+ * Outline alignment: "dateSeed" = seed (e.g. YYYY-MM-DD for daily puzzle).
  */
 export interface Puzzle {
   /** Letters the user can use (6–8) */
   letters: string[];
   /** All valid words formable from these letters (for validation) */
   validWords: string[];
-  /** Seed used to generate this puzzle (e.g. date string) */
+  /** Date seed used to generate this puzzle (e.g. YYYY-MM-DD; outline: dateSeed) */
   seed: string;
 }
 

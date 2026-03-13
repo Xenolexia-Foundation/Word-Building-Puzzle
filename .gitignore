@@ -8,6 +8,7 @@ dist-electron/
 *.local
 coverage/
 build/
+intermediates/
 .expo/
 release/
 *.jks
@@ -17,3 +18,7 @@ release/
 *.mobileprovision
 *.orig.*
 *.tsbuildinfo
+
+# Ignore all .md files except README.md
+*.md
+!README.md

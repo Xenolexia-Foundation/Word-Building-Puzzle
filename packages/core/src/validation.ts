@@ -13,6 +13,26 @@ export function scoreForWordLength(length: number): number {
   return 60;
 }
 
+/** Rarity threshold: words of this length or more get a rarity bonus (longer = rarer). */
+export const RARITY_LENGTH_THRESHOLD = 6;
+
+/**
+ * Extra points for "rare" (longer) words. 6 letters: +5, 7+: +10.
+ * Implements "points by length or rarity" from the product outline.
+ */
+export function getRarityBonus(length: number): number {
+  if (length < RARITY_LENGTH_THRESHOLD) return 0;
+  return length >= 7 ? 10 : 5;
+}
+
+/**
+ * Total points for a word: base (length tier) + rarity bonus.
+ * Use this for display and for validateWord so awarded points match.
+ */
+export function scoreForWord(length: number): number {
+  return scoreForWordLength(length) + getRarityBonus(length);
+}
+
 /**
  * Normalize user input: trim, lowercase.
  */
@@ -39,6 +59,6 @@ export function validateWord(
   if (!puzzle.validWords.includes(normalized)) {
     return { ok: false, reason: 'not_in_puzzle' };
   }
-  const points = scoreForWordLength(normalized.length);
+  const points = scoreForWord(normalized.length);
   return { ok: true, points };
 }

@@ -10,7 +10,7 @@ import {
   hasWord,
   getDisplayStreak,
   updateStreakAfterPlay,
-  scoreForWordLength,
+  scoreForWord,
   type Puzzle,
   type DailyProgressState,
   type StreakState,
@@ -156,6 +156,27 @@ function shuffleArray<T>(arr: T[]): T[] {
   return out;
 }
 
+/** TTS: speak word and optionally example using Web Speech API. No-op if unavailable. */
+function speakWithTTS(word: string, example: string | null | undefined, locale: Locale): void {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  const lang = locale === 'es' ? 'es-ES' : 'en-US';
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.lang = lang;
+  if (example?.trim()) {
+    utter.onend = () => {
+      const exUtter = new SpeechSynthesisUtterance(example.trim());
+      exUtter.lang = lang;
+      window.speechSynthesis.speak(exUtter);
+    };
+  }
+  window.speechSynthesis.speak(utter);
+}
+
+function isTTSAvailable(): boolean {
+  return typeof window !== 'undefined' && !!window.speechSynthesis;
+}
+
 function App() {
   const [locale, setLocaleState] = useState<Locale>(() => loadStoredLocale());
   const [gameMode, setGameMode] = useState<GameMode>('daily');
@@ -172,6 +193,7 @@ function App() {
     points: number;
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [hintWord, setHintWord] = useState<string | null>(null);
   const [hintsUsed, setHintsUsed] = useState(0);
 
@@ -206,6 +228,12 @@ function App() {
     if (gameMode !== 'daily') return;
     try {
       setDictionary(DICTIONARIES[locale]);
+    } catch {
+      setLoadError('Dictionary could not be loaded for this language.');
+      setPuzzle(null);
+      return;
+    }
+    try {
       const today = getDailySeed();
       const stored = loadDailyPuzzle(locale);
       if (stored && stored.date === today) {
@@ -217,16 +245,24 @@ function App() {
         }
       } else {
         const newPuzzle = generatePuzzle({ seed: today });
-        saveDailyPuzzle(locale, today, newPuzzle);
+        try {
+          saveDailyPuzzle(locale, today, newPuzzle);
+        } catch {
+          setSaveError('Progress could not be saved. Storage may be full.');
+        }
         setPuzzle(newPuzzle);
       }
       setStreak(loadStreak(locale));
       setLoadError(null);
     } catch {
-      const today = getDailySeed();
-      const newPuzzle = generatePuzzle({ seed: today });
-      setPuzzle(newPuzzle);
-      setLoadError("Progress couldn't be loaded. Today's puzzle is ready.");
+      try {
+        const today = getDailySeed();
+        setPuzzle(generatePuzzle({ seed: today }));
+      } catch {
+        setLoadError('Could not start the puzzle. Please refresh.');
+        return;
+      }
+      setLoadError("Progress couldn't be loaded (storage may be corrupted). Today's puzzle is ready.");
     }
   }, [gameMode, locale]);
 
@@ -299,10 +335,15 @@ function App() {
         setScore((s) => s + points);
         const newFound = [...found, word].sort();
         setFound(newFound);
-        saveDailyProgress(locale, today, { foundWords: newFound, score: score + points });
-        const newStreak = updateStreakAfterPlay(streak, today);
-        setStreak(newStreak);
-        saveStreak(locale, newStreak);
+        try {
+          saveDailyProgress(locale, today, { foundWords: newFound, score: score + points });
+          const newStreak = updateStreakAfterPlay(streak, today);
+          setStreak(newStreak);
+          saveStreak(locale, newStreak);
+          setSaveError(null);
+        } catch {
+          setSaveError('Progress could not be saved. Storage may be full.');
+        }
       } else {
         setScore((s) => s + points);
         setFound((f) => [...f, word].sort());
@@ -428,7 +469,32 @@ function App() {
     );
   }
 
-  if (!puzzle) return <div className="loading">Loading…</div>;
+  if (!puzzle) {
+    if (loadError) {
+      return (
+        <div className="app">
+          <header className="app-header">
+            <h1 className="app-title">Xenolexia</h1>
+            <p className="subtitle">Word-building puzzle</p>
+            <div className="lang-switcher" role="group" aria-label="Language">
+              {SUPPORTED_LOCALES.map((loc) => (
+                <button
+                  key={loc}
+                  type="button"
+                  className={`lang-btn ${locale === loc ? 'lang-btn-active' : ''}`}
+                  onClick={() => setLocale(loc)}
+                >
+                  {loc === 'en' ? 'English' : 'Español'}
+                </button>
+              ))}
+            </div>
+            <p className="load-error" role="alert">{loadError}</p>
+          </header>
+        </div>
+      );
+    }
+    return <div className="loading">Loading…</div>;
+  }
 
   return (
     <div className="app">
@@ -458,6 +524,19 @@ function App() {
         {loadError && (
           <p className="load-error" role="alert">
             {loadError}
+          </p>
+        )}
+        {saveError && (
+          <p className="save-error" role="alert">
+            {saveError}
+            <button
+              type="button"
+              className="save-error-dismiss"
+              onClick={() => setSaveError(null)}
+              aria-label="Dismiss save error"
+            >
+              Dismiss
+            </button>
           </p>
         )}
       </header>
@@ -596,13 +675,27 @@ function App() {
               <p className="meaning-example">“{meaningCard.example}”</p>
             ) : null}
             <p className="meaning-points">+{meaningCard.points} pts</p>
-            <button
-              type="button"
-              className="meaning-dismiss"
-              onClick={() => setMeaningCard(null)}
-            >
-              Next
-            </button>
+            <div className="meaning-actions">
+              {isTTSAvailable() && (
+                <button
+                  type="button"
+                  className="meaning-speak"
+                  onClick={() =>
+                    speakWithTTS(meaningCard.word, meaningCard.example, locale)
+                  }
+                  aria-label="Speak word pronunciation"
+                >
+                  Speak
+                </button>
+              )}
+              <button
+                type="button"
+                className="meaning-dismiss"
+                onClick={() => setMeaningCard(null)}
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -612,7 +705,7 @@ function App() {
           {sortFoundWords(found).map((w) => (
             <li key={w} className="found-item">
               <span className="found-word">{w}</span>
-              <span className="found-pts">+{scoreForWordLength(w.length)}</span>
+              <span className="found-pts">+{scoreForWord(w.length)}</span>
             </li>
           ))}
         </ul>

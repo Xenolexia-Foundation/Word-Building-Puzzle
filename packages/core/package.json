@@ -15,7 +15,8 @@
     "build": "tsup src/index.ts --format cjs,esm --clean && tsc --emitDeclarationOnly --declaration --outDir dist",
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "expand-dictionary": "node scripts/expand-dictionary.mjs"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

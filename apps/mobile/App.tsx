@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Tts from 'react-native-tts';
 import {
   setDictionary,
   DICTIONARIES,
@@ -20,7 +21,7 @@ import {
   hasWord,
   getDisplayStreak,
   updateStreakAfterPlay,
-  scoreForWordLength,
+  scoreForWord,
   type Puzzle,
   type DailyProgressState,
   type StreakState,
@@ -164,6 +165,26 @@ function shuffleArray<T>(arr: T[]): T[] {
   return out;
 }
 
+/** TTS: speak word and optionally example. No-op if TTS not available. */
+function speakWithTTS(word: string, example: string | null | undefined, locale: Locale): void {
+  const lang = locale === 'es' ? 'es-ES' : 'en-US';
+  Tts.getInitStatus()
+    .then(() => {
+      Tts.setDefaultLanguage(lang);
+      if (example?.trim()) {
+        const onFinish = () => {
+          Tts.removeEventListener('tts-finish', onFinish);
+          Tts.speak(example.trim());
+        };
+        Tts.addEventListener('tts-finish', onFinish);
+        Tts.speak(word);
+      } else {
+        Tts.speak(word);
+      }
+    })
+    .catch(() => {});
+}
+
 export default function App() {
   const [locale, setLocaleState] = useState<Locale>('en');
   const [gameMode, setGameMode] = useState<GameMode>('daily');
@@ -180,6 +201,7 @@ export default function App() {
     points: number;
   } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [hintWord, setHintWord] = useState<string | null>(null);
   const [hintsUsed, setHintsUsed] = useState(0);
 
@@ -209,7 +231,13 @@ export default function App() {
       timedEndHandled.current = false;
       return;
     }
-    setDictionary(DICTIONARIES[locale]);
+    try {
+      setDictionary(DICTIONARIES[locale]);
+    } catch {
+      setLoadError('Dictionary could not be loaded for this language.');
+      setPuzzle(null);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -225,16 +253,24 @@ export default function App() {
           }
         } else {
           const newPuzzle = generatePuzzle({ seed: today });
-          await saveDailyPuzzle(locale, today, newPuzzle);
+          await saveDailyPuzzle(locale, today, newPuzzle).catch(() => {
+            if (!cancelled) setSaveError('Progress could not be saved. Storage may be full.');
+          });
           if (!cancelled) setPuzzle(newPuzzle);
         }
         const streakState = await loadStreak(locale);
         if (!cancelled) setStreak(streakState);
+        if (!cancelled) setLoadError(null);
       } catch {
         if (cancelled) return;
-        const today = getDailySeed();
-        setPuzzle(generatePuzzle({ seed: today }));
-        setLoadError("Progress couldn't be loaded. Today's puzzle is ready.");
+        try {
+          const today = getDailySeed();
+          setPuzzle(generatePuzzle({ seed: today }));
+        } catch {
+          setLoadError('Could not start the puzzle. Please restart the app.');
+          return;
+        }
+        setLoadError("Progress couldn't be loaded (storage may be corrupted). Today's puzzle is ready.");
       }
     })();
     return () => {
@@ -311,10 +347,12 @@ export default function App() {
         setScore((s) => s + points);
         const newFound = [...found, word].sort();
         setFound(newFound);
-        saveDailyProgress(locale, today, { foundWords: newFound, score: score + points });
         const newStreak = updateStreakAfterPlay(streak, today);
         setStreak(newStreak);
-        saveStreak(locale, newStreak);
+        saveDailyProgress(locale, today, { foundWords: newFound, score: score + points })
+          .then(() => saveStreak(locale, newStreak))
+          .then(() => setSaveError(null))
+          .catch(() => setSaveError('Progress could not be saved. Storage may be full.'));
       } else {
         setScore((s) => s + points);
         setFound((f) => [...f, word].sort());
@@ -445,6 +483,28 @@ export default function App() {
   }
 
   if (!puzzle) {
+    if (loadError) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.title} accessibilityRole="header">Xenolexia</Text>
+          <Text style={styles.subtitle}>Word-building puzzle</Text>
+          <View style={styles.langSwitcher}>
+            {SUPPORTED_LOCALES.map((loc) => (
+              <TouchableOpacity
+                key={loc}
+                style={[styles.langBtn, locale === loc && styles.langBtnActive]}
+                onPress={() => setLocale(loc)}
+              >
+                <Text style={[styles.langBtnText, locale === loc && styles.langBtnTextActive]}>
+                  {loc === 'en' ? 'English' : 'Español'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.loadError} accessibilityRole="alert">{loadError}</Text>
+        </View>
+      );
+    }
     return (
       <View style={styles.centered}>
         <Text style={styles.loading}>Loading…</Text>
@@ -485,6 +545,19 @@ export default function App() {
         )}
         {loadError ? (
           <Text style={styles.loadError} accessibilityRole="alert">{loadError}</Text>
+        ) : null}
+        {saveError ? (
+          <View style={styles.saveErrorRow} accessibilityRole="alert">
+            <Text style={styles.saveErrorText}>{saveError}</Text>
+            <TouchableOpacity
+              style={styles.saveErrorDismiss}
+              onPress={() => setSaveError(null)}
+              accessibilityLabel="Dismiss save error"
+              accessibilityRole="button"
+            >
+              <Text style={styles.saveErrorDismissText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
       </View>
 
@@ -631,12 +704,25 @@ export default function App() {
               <Text style={styles.meaningExample}>"{meaningCard.example}"</Text>
             ) : null}
             <Text style={styles.meaningPoints}>+{meaningCard?.points ?? 0} pts</Text>
-            <TouchableOpacity
-              style={styles.meaningDismiss}
-              onPress={() => setMeaningCard(null)}
-            >
-              <Text style={styles.meaningDismissText}>Next</Text>
-            </TouchableOpacity>
+            <View style={styles.meaningActions}>
+              <TouchableOpacity
+                style={styles.meaningSpeak}
+                onPress={() =>
+                  meaningCard &&
+                  speakWithTTS(meaningCard.word, meaningCard.example, locale)
+                }
+                accessibilityLabel="Speak word pronunciation"
+                accessibilityRole="button"
+              >
+                <Text style={styles.meaningSpeakText}>Speak</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.meaningDismiss}
+                onPress={() => setMeaningCard(null)}
+              >
+                <Text style={styles.meaningDismissText}>Next</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -646,7 +732,7 @@ export default function App() {
         {sortFoundWords(found).map((item) => (
           <View key={item} style={styles.foundItemRow}>
             <Text style={styles.foundItem}>{item}</Text>
-            <Text style={styles.foundPts}>+{scoreForWordLength(item.length)}</Text>
+            <Text style={styles.foundPts}>+{scoreForWord(item.length)}</Text>
           </View>
         ))}
       </View>
@@ -699,6 +785,32 @@ const styles = StyleSheet.create({
     color: '#e0af68',
     textAlign: 'center',
     paddingHorizontal: 16,
+  },
+  saveErrorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 16,
+  },
+  saveErrorText: {
+    fontSize: 12,
+    color: '#e0af68',
+    textAlign: 'center',
+  },
+  saveErrorDismiss: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: '#e0af68',
+    borderRadius: 4,
+  },
+  saveErrorDismissText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#e0af68',
   },
   langSwitcher: {
     flexDirection: 'row',
@@ -1051,7 +1163,29 @@ const styles = StyleSheet.create({
     color: '#9ece6a',
     marginBottom: 16,
   },
+  meaningActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    alignItems: 'center',
+  },
+  meaningSpeak: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#414868',
+    backgroundColor: '#24283b',
+    alignItems: 'center',
+  },
+  meaningSpeakText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#c0caf5',
+  },
   meaningDismiss: {
+    flex: 1,
+    minWidth: 0,
     backgroundColor: '#7aa2f7',
     paddingVertical: 12,
     borderRadius: 8,

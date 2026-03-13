@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   setDictionary,
+  loadDictionary,
+  getDictionary,
+  hasWord,
   sampleDictionary,
   getDailySeed,
   getYesterday,
@@ -8,6 +11,8 @@ import {
   getDisplayStreak,
   validateWord,
   scoreForWordLength,
+  getRarityBonus,
+  scoreForWord,
   generatePuzzle,
   canFormWord,
   findValidWords,
@@ -87,6 +92,32 @@ describe('scoreForWordLength', () => {
   });
 });
 
+describe('getRarityBonus', () => {
+  it('returns 0 for short words (below threshold)', () => {
+    expect(getRarityBonus(0)).toBe(0);
+    expect(getRarityBonus(3)).toBe(0);
+    expect(getRarityBonus(5)).toBe(0);
+  });
+
+  it('returns 5 for 6-letter words', () => {
+    expect(getRarityBonus(6)).toBe(5);
+  });
+
+  it('returns 10 for 7+ letter words', () => {
+    expect(getRarityBonus(7)).toBe(10);
+    expect(getRarityBonus(10)).toBe(10);
+  });
+});
+
+describe('scoreForWord', () => {
+  it('returns base points plus rarity bonus', () => {
+    expect(scoreForWord(3)).toBe(10); // 10 + 0
+    expect(scoreForWord(5)).toBe(25); // 25 + 0
+    expect(scoreForWord(6)).toBe(45); // 40 + 5
+    expect(scoreForWord(7)).toBe(70); // 60 + 10
+  });
+});
+
 describe('validateWord', () => {
   beforeEach(() => {
     setDictionary(sampleDictionary);
@@ -98,10 +129,10 @@ describe('validateWord', () => {
     seed: '2025-03-11',
   };
 
-  it('returns valid with points for a valid word', () => {
+  it('returns valid with points for a valid word (length + rarity)', () => {
     const r = validateWord(puzzle, 'create', []);
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.points).toBe(40); // 6 letters -> 40
+    if (r.ok) expect(r.points).toBe(45); // 6 letters -> 40 + 5 rarity
   });
 
   it('returns already_found when word was already found', () => {
@@ -194,5 +225,25 @@ describe('findValidWords', () => {
   it('returns empty array when dictionary empty', () => {
     setDictionary([]);
     expect(findValidWords(['a', 'b', 'c'])).toEqual([]);
+  });
+});
+
+describe('loadDictionary', () => {
+  it('accepts a Dictionary array and sets dictionary', async () => {
+    await loadDictionary(sampleDictionary);
+    expect(getDictionary().length).toBe(sampleDictionary.length);
+    expect(hasWord('cat')).toBe(true);
+  });
+
+  it('accepts a sync getter and sets dictionary', async () => {
+    await loadDictionary(() => sampleDictionary);
+    expect(getDictionary().length).toBe(sampleDictionary.length);
+    expect(hasWord('create')).toBe(true);
+  });
+
+  it('accepts an async getter and sets dictionary', async () => {
+    await loadDictionary(() => Promise.resolve(sampleDictionary));
+    expect(getDictionary().length).toBe(sampleDictionary.length);
+    expect(hasWord('tea')).toBe(true);
   });
 });
