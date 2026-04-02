@@ -9,8 +9,8 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.1.2",
-    "react": "^18.3.1",
-    "react-native": "^0.76.5",
+    "react": "19.2.4",
+    "react-native": "0.84.1",
     "react-native-tts": "^4.1.1",
     "xenolexia-core": "*"
   },
@@ -18,11 +18,11 @@
     "@babel/core": "^7.26.0",
     "@babel/preset-env": "^7.26.0",
     "@babel/runtime": "^7.26.0",
-    "@react-native/babel-preset": "0.76.5",
-    "@react-native/eslint-config": "0.76.5",
-    "@react-native/metro-config": "0.76.5",
-    "@react-native/typescript-config": "0.76.5",
-    "@types/react": "^18.3.12",
-    "typescript": "^5.7.2"
+    "@react-native/babel-preset": "0.84.1",
+    "@react-native/eslint-config": "0.84.1",
+    "@react-native/metro-config": "0.84.1",
+    "@react-native/typescript-config": "0.84.1",
+    "@types/react": "^19.1.1",
+    "typescript": "^6.0.2"
   }
 }
