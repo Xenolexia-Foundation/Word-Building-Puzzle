@@ -3,12 +3,13 @@
  * Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See LICENSE.
  */
 
+import { parseDictionary } from '@xenolexia/dict';
 import type { Dictionary } from '../types.js';
 import dictionaryEn from './dictionary.en.json';
 import dictionaryEs from './dictionary.es.json';
 
-const en = dictionaryEn as Dictionary;
-const es = dictionaryEs as Dictionary;
+const en = parseDictionary(dictionaryEn) as Dictionary;
+const es = parseDictionary(dictionaryEs) as Dictionary;
 
 export const SUPPORTED_LOCALES = ['en', 'es'] as const;
 export type Locale = (typeof SUPPORTED_LOCALES)[number];

@@ -3,10 +3,11 @@
  * Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See LICENSE.
  */
 
+import { parseDictionary } from '@xenolexia/dict';
 import type { Dictionary } from '../types.js';
 
 /** Sample dictionary for development. Load with setDictionary(sampleDictionary). */
-export const sampleDictionary: Dictionary = [
+export const sampleDictionary: Dictionary = parseDictionary([
   { word: 'cat', translation: 'a small domesticated carnivorous mammal', example: 'The cat sat on the mat.' },
   { word: 'act', translation: 'to do something', example: 'Act now.' },
   { word: 'ate', translation: 'past of eat', example: 'She ate the cake.' },
@@ -33,4 +34,4 @@ export const sampleDictionary: Dictionary = [
   { word: 'era', translation: 'a period of time', example: 'The digital era.' },
   { word: 'ear', translation: 'organ of hearing', example: 'She whispered in his ear.' },
   { word: 'eta', translation: 'Greek letter', example: '' },
-];
+]);

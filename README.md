@@ -54,13 +54,15 @@ In another terminal: `cd apps/mobile && npx react-native run-android` or `run-io
 - **Electron:** `npm run electron:build -w apps/electron` — produces installers in `apps/electron/release/` (NSIS on Windows, DMG on macOS, AppImage on Linux).
 - **Mobile:** Standard React Native build (e.g. `cd apps/mobile && npx react-native run-android --mode=release`).
 
-## Test
+## Tests
 
 ```bash
 npm run test
 ```
 
-Runs unit tests for `packages/core` (Vitest): daily seed, streak, validation, scoring, puzzle determinism.
+Runs unit tests for **`packages/core`** (Vitest): daily seed, streak, validation, scoring, puzzle determinism.
+
+From the **Xenolexia** monorepo root, this project is included in `npm run test:all` (see root [README.md](../README.md)). The **Electron** (`apps/electron`) and **React Native** (`apps/mobile`) shells do not define separate unit test scripts; the shared game logic is covered by `packages/core` tests.
 
 ## Offline & robustness
 

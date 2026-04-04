@@ -3,6 +3,7 @@
  * Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See LICENSE.
  */
 
+import { parseDictionary } from '@xenolexia/dict';
 import type { Dictionary, DictionaryEntry } from './types.js';
 
 /** Default dictionary: loaded from bundled JSON. Call setDictionary to replace. */
@@ -11,18 +12,20 @@ let dictionary: Dictionary = [];
 /**
  * Source for dictionary data: sync array, sync getter, or async getter (e.g. from SQLite).
  * Used by loadDictionary() so apps can plug in async or SQLite-backed sources without core depending on them.
+ * Payloads are validated with @xenolexia/dict `parseDictionary` (same shape as bundled JSON).
  */
 export type DictionarySource =
-  | Dictionary
-  | (() => Dictionary)
-  | (() => Promise<Dictionary>);
+  | unknown
+  | (() => unknown)
+  | (() => Promise<unknown>);
 
 /**
- * Load dictionary from a Dictionary array (e.g. from JSON or SQLite).
- * Call this at app init. Pass the result of importing your dictionary JSON.
+ * Load dictionary from a validated array (e.g. from JSON or SQLite).
+ * Call this at app init. Invalid entries throw (Zod).
  */
-export function setDictionary(entries: Dictionary): void {
-  dictionary = entries.map((e) => ({
+export function setDictionary(entries: unknown): void {
+  const parsed = parseDictionary(entries);
+  dictionary = parsed.map((e) => ({
     word: normalizeWord(e.word),
     translation: e.translation,
     example: e.example,
@@ -35,17 +38,13 @@ export function setDictionary(entries: Dictionary): void {
  * JSON default: setDictionary(DICTIONARIES[locale]). SQLite: loadDictionary(async () => loadFromSQLite()).
  */
 export async function loadDictionary(source: DictionarySource): Promise<void> {
-  if (Array.isArray(source)) {
-    setDictionary(source);
+  if (typeof source === 'function') {
+    const result = source();
+    const data = result instanceof Promise ? await result : result;
+    setDictionary(data);
     return;
   }
-  const result = source();
-  if (result instanceof Promise) {
-    const entries = await result;
-    setDictionary(entries);
-    return;
-  }
-  setDictionary(result);
+  setDictionary(source);
 }
 
 /**

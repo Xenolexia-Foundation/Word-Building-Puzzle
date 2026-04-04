@@ -27,3 +27,7 @@ npx @react-native-community/cli@latest init XenolexiaMobile --directory apps/mob
 Then replace `apps/mobile/package.json` with the one from this repo (so the `xenolexia-core` workspace dependency is kept), run `npm install` from the repo root again, and copy any desired config (e.g. `metro.config.js`, `App.tsx`) back into `apps/mobile` if the CLI overwrote them.
 
 Alternatively, create a new React Native app in a temp directory, then copy the `android` and `ios` folders into `apps/mobile`.
+
+## Tests
+
+This package has **no** `npm test` script. Shared game logic is tested in **`packages/core`** (`npm run test` from the Word-Building-Puzzle repo root). From the **Xenolexia** monorepo root, see [README.md](../../../README.md).

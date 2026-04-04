@@ -3,19 +3,12 @@
  * Licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See LICENSE.
  */
 
+import type { DictionaryEntrySchemaType } from '@xenolexia/dict';
+
 /**
- * Dictionary entry for a single word.
- * Used for validation and meaning lookup.
- * Outline alignment: "definition" = translation; optional example = example.
+ * Dictionary entry for a single word (aligned with @xenolexia/dict `dictionaryEntrySchema`).
  */
-export interface DictionaryEntry {
-  /** Normalized word (lowercase, for lookup) */
-  word: string;
-  /** Definition or translation (outline: definition) */
-  translation: string;
-  /** Optional example sentence */
-  example?: string;
-}
+export type DictionaryEntry = DictionaryEntrySchemaType;
 
 /**
  * In-memory dictionary: array of entries.

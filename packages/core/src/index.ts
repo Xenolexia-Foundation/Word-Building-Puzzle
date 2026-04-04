@@ -41,3 +41,10 @@ export {
   getDisplayStreak,
   updateStreakAfterPlay,
 } from './progress.js';
+export {
+  dictionaryEntrySchema,
+  dictionarySchema,
+  parseDictionaryEntry,
+  parseDictionary,
+  type DictionaryEntrySchemaType,
+} from '@xenolexia/dict';

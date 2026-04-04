@@ -12,11 +12,14 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --clean && tsc --emitDeclarationOnly --declaration --outDir dist",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "expand-dictionary": "node scripts/expand-dictionary.mjs"
+  },
+  "dependencies": {
+    "@xenolexia/dict": "file:../../../packages/xenolexia-dict"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

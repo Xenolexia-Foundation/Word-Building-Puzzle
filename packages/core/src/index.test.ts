@@ -233,6 +233,21 @@ describe('findValidWords', () => {
   });
 });
 
+describe('setDictionary validation (@xenolexia/dict)', () => {
+  it('throws when word is empty', () => {
+    expect(() => setDictionary([{ word: '', translation: 'x' }])).toThrow();
+  });
+
+  it('throws when payload is not an array', () => {
+    expect(() => setDictionary({ word: 'a', translation: 'b' } as never)).toThrow();
+  });
+
+  it('accepts empty array', () => {
+    setDictionary([]);
+    expect(getDictionary()).toEqual([]);
+  });
+});
+
 describe('loadDictionary', () => {
   it('accepts a Dictionary array and sets dictionary', async () => {
     await loadDictionary(sampleDictionary);
